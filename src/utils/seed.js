@@ -45,6 +45,26 @@ export async function seedDefaults() {
     await u.save();
     console.log(`Referral code assigned: ${u.email} → ${u.uid}`);
   }
+
+  await syncSupportVisibility();
+}
+
+/** If contact value exists but "visible" was saved false, turn visible on so the app shows it. */
+export async function syncSupportVisibility() {
+  const pairs = [
+    ['supportPhone', 'supportPhoneVisible'],
+    ['supportTelegram', 'supportTelegramVisible'],
+    ['supportWhatsapp', 'supportWhatsappVisible'],
+  ];
+  for (const [valueKey, visibleKey] of pairs) {
+    const valueDoc = await Setting.findOne({ key: valueKey });
+    const visibleDoc = await Setting.findOne({ key: visibleKey });
+    const value = String(valueDoc?.value || '').trim();
+    if (value && visibleDoc?.value === false) {
+      await Setting.findOneAndUpdate({ key: visibleKey }, { value: true }, { upsert: true });
+      console.log(`Support visibility fixed: ${visibleKey} → true`);
+    }
+  }
 }
 
 /** Legacy numeric UID — prefer generateReferralCode for new users */

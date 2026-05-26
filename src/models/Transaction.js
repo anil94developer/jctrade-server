@@ -6,6 +6,7 @@ const transactionSchema = new mongoose.Schema(
     transactionHash: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true },
     value: { type: Number, required: true },
+    usdtAmount: { type: Number, default: 0 },
     upiId: { type: String, required: true, trim: true },
     status: {
       type: String,

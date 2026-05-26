@@ -15,15 +15,25 @@ router.post('/', authUser, async (req, res) => {
       return res.status(503).json({ message: 'System is under maintenance. Please try later.' });
     }
 
-    const { transactionHash, name, value, upiId } = req.body;
-    if (!transactionHash?.trim() || !name?.trim() || value == null || !upiId?.trim()) {
+    const { transactionHash, name, value, upiId, usdtAmount } = req.body;
+    if (!transactionHash?.trim() || !name?.trim() || !upiId?.trim()) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+    const platformRate = Number(await getSetting('usdtPrice', 0));
+    const usdt = Number(usdtAmount) || 0;
+    let inrValue = Number(value);
+    if (usdt > 0 && platformRate > 0) {
+      inrValue = usdt * platformRate;
+    }
+    if (!Number.isFinite(inrValue) || inrValue <= 0) {
+      return res.status(400).json({ message: 'Enter valid USDT amount or INR value' });
     }
     const tx = await Transaction.create({
       userId: req.userId,
       transactionHash: transactionHash.trim(),
       name: name.trim(),
-      value: Number(value),
+      value: inrValue,
+      usdtAmount: usdt > 0 ? usdt : inrValue / (platformRate || 1),
       upiId: upiId.trim(),
     });
     res.status(201).json(tx);

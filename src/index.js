@@ -10,6 +10,7 @@ import transactionsRoutes from './routes/transactions.js';
 import walletRoutes from './routes/wallet.js';
 import dashboardRoutes from './routes/dashboard.js';
 import referralRoutes from './routes/referrals.js';
+import bannerRoutes from './routes/banners.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -50,6 +51,7 @@ app.use('/api/transactions', transactionsRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/referrals', referralRoutes);
+app.use('/api/banners', bannerRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ message: 'Not found' });

@@ -80,13 +80,25 @@ router.put('/', authAdmin, async (req, res) => {
       await setSetting('buyCashbackPercent', Number(body.buyCashbackPercent));
     }
     if (body.supportPhone !== undefined) {
-      await setSetting('supportPhone', String(body.supportPhone).trim());
+      const v = String(body.supportPhone).trim();
+      await setSetting('supportPhone', v);
+      if (v && body.supportPhoneVisible === undefined) {
+        await setSetting('supportPhoneVisible', true);
+      }
     }
     if (body.supportTelegram !== undefined) {
-      await setSetting('supportTelegram', String(body.supportTelegram).trim());
+      const v = String(body.supportTelegram).trim();
+      await setSetting('supportTelegram', v);
+      if (v && body.supportTelegramVisible === undefined) {
+        await setSetting('supportTelegramVisible', true);
+      }
     }
     if (body.supportWhatsapp !== undefined) {
-      await setSetting('supportWhatsapp', String(body.supportWhatsapp).trim());
+      const v = String(body.supportWhatsapp).trim();
+      await setSetting('supportWhatsapp', v);
+      if (v && body.supportWhatsappVisible === undefined) {
+        await setSetting('supportWhatsappVisible', true);
+      }
     }
     if (body.supportPhoneVisible !== undefined) {
       await setSetting('supportPhoneVisible', Boolean(body.supportPhoneVisible));
