@@ -127,6 +127,28 @@ router.patch('/:id/status', authAdmin, async (req, res) => {
           title: 'Sell-USDT',
           transactionId: tx._id,
         });
+
+        if (user.referredBy && !user.referralCreditGiven) {
+          const reward = Number(await getSetting('referralReward', 0));
+          if (reward > 0) {
+            const referrer = await User.findById(user.referredBy);
+            if (referrer && !referrer.blocked) {
+              referrer.balance = (referrer.balance || 0) + reward;
+              referrer.referralEarnings = (referrer.referralEarnings || 0) + reward;
+              await referrer.save();
+              await WalletEntry.create({
+                userId: referrer._id,
+                type: 'income',
+                category: 'referral',
+                amount: reward,
+                balance: referrer.balance,
+                title: `Referral bonus — ${user.uid}`,
+              });
+              user.referralCreditGiven = true;
+              await user.save();
+            }
+          }
+        }
       }
     }
 

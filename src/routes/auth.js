@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { Admin } from '../models/Admin.js';
 import { User } from '../models/User.js';
-import { randomUid } from '../utils/seed.js';
+import { uniqueReferralCode } from '../utils/seed.js';
 
 const router = Router();
 
@@ -30,6 +30,7 @@ router.post('/admin/login', async (req, res) => {
 router.post('/google', async (req, res) => {
   try {
     const idToken = req.body.idToken || req.body.credential;
+    const referralCode = String(req.body.referralCode || req.body.ref || '').trim();
 
     if (!idToken) {
       return res.status(400).json({ message: 'Google sign-in token is required' });
@@ -64,19 +65,31 @@ router.post('/google', async (req, res) => {
 
     let user = await User.findOne({ email: profile.email.toLowerCase() });
     if (!user) {
-      let uid = randomUid();
-      while (await User.findOne({ uid })) uid = randomUid();
+      const uid = await uniqueReferralCode();
+
+      let referredBy = null;
+      if (referralCode) {
+        const referrer = await User.findOne({ uid: referralCode });
+        if (referrer && referrer.email !== profile.email.toLowerCase()) {
+          referredBy = referrer._id;
+        }
+      }
+
       user = await User.create({
         googleId: profile.sub,
         email: profile.email.toLowerCase(),
         name: profile.name || '',
         avatar: profile.picture || '',
         uid,
+        referredBy,
       });
     } else {
       if (profile.name && !user.name) user.name = profile.name;
       if (profile.picture) user.avatar = profile.picture;
       if (profile.sub) user.googleId = profile.sub;
+      if (!user.uid) {
+        user.uid = await uniqueReferralCode();
+      }
       await user.save();
     }
 

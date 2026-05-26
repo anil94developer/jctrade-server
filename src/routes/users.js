@@ -8,6 +8,21 @@ const router = Router();
 
 const USER_COLUMNS = ['uid', 'name', 'email', 'phone', 'upiId', 'balance', 'blocked', 'createdAt'];
 
+router.get('/me/stats', authUser, async (req, res) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const filter = { userId: req.userId, createdAt: { $gte: startOfDay } };
+    const [inTransaction, success] = await Promise.all([
+      Transaction.countDocuments({ ...filter, status: 'pending' }),
+      Transaction.countDocuments({ ...filter, status: 'approved' }),
+    ]);
+    res.json({ inTransaction, success });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get('/me', authUser, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-__v');

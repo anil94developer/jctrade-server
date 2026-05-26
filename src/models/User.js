@@ -11,6 +11,9 @@ const userSchema = new mongoose.Schema(
     balance: { type: Number, default: 0 },
     avatar: { type: String, default: '' },
     blocked: { type: Boolean, default: false },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    referralCreditGiven: { type: Boolean, default: false },
+    referralEarnings: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
