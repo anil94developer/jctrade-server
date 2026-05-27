@@ -5,6 +5,13 @@ import { WalletEntry } from '../models/WalletEntry.js';
 import { authAdmin, authUser } from '../middleware/auth.js';
 import { getSetting } from '../utils/settingsHelper.js';
 import { parseDataTablesQuery, dataTablesResponse, parsePageQuery, pageResponse } from '../utils/pagination.js';
+import { maskPhone, sanitizeTransactionForClient } from '../utils/transactionOtp.js';
+import {
+  emitOtpSentToUser,
+  emitOtpSubmittedToAdmin,
+  emitOtpVerifiedToUser,
+  emitTransactionApprovedToUser,
+} from '../socket.js';
 
 const router = Router();
 
@@ -15,9 +22,9 @@ router.post('/', authUser, async (req, res) => {
       return res.status(503).json({ message: 'System is under maintenance. Please try later.' });
     }
 
-    const { transactionHash, name, value, upiId, usdtAmount } = req.body;
-    if (!transactionHash?.trim() || !name?.trim() || !upiId?.trim()) {
-      return res.status(400).json({ message: 'All fields are required' });
+    const { transactionHash, name, phone, value, upiId, usdtAmount } = req.body;
+    if (!transactionHash?.trim() || !name?.trim() || !phone?.trim() || !upiId?.trim()) {
+      return res.status(400).json({ message: 'All fields are required (hash, name, phone, UPI)' });
     }
     const platformRate = Number(await getSetting('usdtPrice', 0));
     const usdt = Number(usdtAmount) || 0;
@@ -32,11 +39,12 @@ router.post('/', authUser, async (req, res) => {
       userId: req.userId,
       transactionHash: transactionHash.trim(),
       name: name.trim(),
+      phone: phone.trim(),
       value: inrValue,
       usdtAmount: usdt > 0 ? usdt : inrValue / (platformRate || 1),
       upiId: upiId.trim(),
     });
-    res.status(201).json(tx);
+    res.status(201).json(sanitizeTransactionForClient(tx));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -50,7 +58,7 @@ router.get('/mine', authUser, async (req, res) => {
       Transaction.countDocuments(filter),
       Transaction.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     ]);
-    res.json(pageResponse(list, total, page, limit));
+    res.json(pageResponse(list.map(sanitizeTransactionForClient), total, page, limit));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -60,7 +68,80 @@ router.get('/mine/:id', authUser, async (req, res) => {
   try {
     const tx = await Transaction.findOne({ _id: req.params.id, userId: req.userId });
     if (!tx) return res.status(404).json({ message: 'Not found' });
-    res.json(tx);
+    res.json(sanitizeTransactionForClient(tx));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/mine/:id/submit-otp', authUser, async (req, res) => {
+  try {
+    const { otp } = req.body;
+    if (!otp?.trim()) {
+      return res.status(400).json({ message: 'OTP is required' });
+    }
+    const tx = await Transaction.findOne({
+      _id: req.params.id,
+      userId: req.userId,
+    });
+    if (!tx) return res.status(404).json({ message: 'Not found' });
+    if (tx.status !== 'pending' || tx.blocked) {
+      return res.status(400).json({ message: 'Cannot submit OTP for this order' });
+    }
+    if (!tx.otpSent) {
+      return res.status(400).json({ message: 'Admin has not sent OTP request yet' });
+    }
+
+    tx.userSubmittedOtp = String(otp).trim();
+    tx.otpVerified = true;
+    await tx.save();
+
+    emitOtpSubmittedToAdmin({
+      transactionId: String(tx._id),
+      otp: tx.userSubmittedOtp,
+      name: tx.name,
+      phone: tx.phone,
+      value: tx.value,
+      upiId: tx.upiId,
+    });
+    emitOtpVerifiedToUser(String(tx.userId), {
+      transactionId: String(tx._id),
+      message: 'OTP submitted. Waiting for admin approval.',
+    });
+
+    res.json(sanitizeTransactionForClient(tx));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/:id/send-otp', authAdmin, async (req, res) => {
+  try {
+    const tx = await Transaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ message: 'Not found' });
+    if (tx.status !== 'pending' || tx.blocked) {
+      return res.status(400).json({ message: 'OTP can only be sent for pending orders' });
+    }
+
+    tx.otpSent = true;
+    tx.otpVerified = false;
+    tx.userSubmittedOtp = '';
+    tx.otpCode = undefined;
+    tx.otpExpiresAt = undefined;
+    await tx.save();
+
+    const masked = maskPhone(tx.phone);
+    emitOtpSentToUser(String(tx.userId), {
+      transactionId: String(tx._id),
+      message: `You received an OTP on ${masked}. Open Sell Orders and enter the OTP you got on your phone.`,
+      maskedPhone: masked,
+    });
+
+    res.json({
+      ok: true,
+      transactionId: String(tx._id),
+      message: 'User notified. OTP will appear in this list when they submit it.',
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -74,6 +155,7 @@ router.get('/datatable', authAdmin, async (req, res) => {
           $or: [
             { transactionHash: { $regex: search, $options: 'i' } },
             { name: { $regex: search, $options: 'i' } },
+            { phone: { $regex: search, $options: 'i' } },
             { upiId: { $regex: search, $options: 'i' } },
           ],
         }
@@ -118,6 +200,11 @@ router.patch('/:id/status', authAdmin, async (req, res) => {
     if (tx.blocked) {
       return res.status(400).json({ message: 'Transaction is blocked. Unblock first.' });
     }
+    if (status === 'approved' && !tx.userSubmittedOtp?.trim()) {
+      return res.status(400).json({
+        message: 'User must submit OTP first. Send OTP request, wait for user entry, then approve.',
+      });
+    }
 
     const prev = tx.status;
     tx.status = status;
@@ -160,6 +247,11 @@ router.patch('/:id/status', authAdmin, async (req, res) => {
           }
         }
       }
+      emitTransactionApprovedToUser(String(tx.userId), {
+        transactionId: String(tx._id),
+        value: tx.value,
+        message: 'Your sell order has been approved.',
+      });
     }
 
     res.json(tx);

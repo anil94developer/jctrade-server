@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import { connectDB } from './config/db.js';
@@ -11,8 +12,10 @@ import walletRoutes from './routes/wallet.js';
 import dashboardRoutes from './routes/dashboard.js';
 import referralRoutes from './routes/referrals.js';
 import bannerRoutes from './routes/banners.js';
+import { initSocket } from './socket.js';
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 4000;
 
 /** Comma-separated list; if unset, all origins allowed (dev + multi-frontend). */
@@ -70,7 +73,8 @@ app.use((err, req, res, _next) => {
 async function start() {
   await connectDB();
   await seedDefaults();
-  app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+  initSocket(httpServer);
+  httpServer.listen(PORT, () => console.log(`API + WebSocket running on http://localhost:${PORT}`));
 }
 
 start().catch((err) => {

@@ -3,31 +3,29 @@ import { User } from '../models/User.js';
 import { Transaction } from '../models/Transaction.js';
 import { authAdmin, authUser } from '../middleware/auth.js';
 import { parseDataTablesQuery, dataTablesResponse } from '../utils/pagination.js';
-import { getSetting } from '../utils/settingsHelper.js';
-
-function usdtFromTransaction(tx, platformRate) {
-  const u = Number(tx.usdtAmount);
-  if (u > 0) return u;
-  const rate = Number(platformRate);
-  const val = Number(tx.value);
-  if (rate > 0 && val > 0) return val / rate;
-  return 0;
-}
-
 const router = Router();
 
 const USER_COLUMNS = ['uid', 'name', 'email', 'phone', 'upiId', 'balance', 'blocked', 'createdAt'];
+
+function sumInrValues(txs) {
+  return txs.reduce((sum, tx) => sum + (Number(tx.value) || 0), 0);
+}
 
 router.get('/me/stats', authUser, async (req, res) => {
   try {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const filter = { userId: req.userId, createdAt: { $gte: startOfDay } };
-    const [inTransaction, success] = await Promise.all([
-      Transaction.countDocuments({ ...filter, status: 'pending' }),
-      Transaction.countDocuments({ ...filter, status: 'approved' }),
+    const todayFilter = { userId: req.userId, createdAt: { $gte: startOfDay } };
+    const [pendingToday, approvedToday] = await Promise.all([
+      Transaction.find({ ...todayFilter, status: 'pending' }).lean(),
+      Transaction.find({ ...todayFilter, status: 'approved' }).lean(),
     ]);
-    res.json({ inTransaction, success });
+    res.json({
+      inTransaction: pendingToday.length,
+      success: approvedToday.length,
+      inTransactionAmount: sumInrValues(pendingToday),
+      successAmount: sumInrValues(approvedToday),
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -35,40 +33,22 @@ router.get('/me/stats', authUser, async (req, res) => {
 
 router.get('/me/earnings', authUser, async (req, res) => {
   try {
-    const [binancePrice, platformPrice] = await Promise.all([
-      getSetting('binancePrice', 0),
-      getSetting('usdtPrice', 0),
-    ]);
-    const binance = Number(binancePrice) || 0;
-    const platform = Number(platformPrice) || 0;
-    const spreadPerUsdt = Math.max(0, platform - binance);
-
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
+    const userFilter = { userId: req.userId };
 
-    const [todayTxs, allApproved] = await Promise.all([
-      Transaction.find({
-        userId: req.userId,
-        status: 'approved',
-        createdAt: { $gte: startOfDay },
-      }).lean(),
-      Transaction.find({ userId: req.userId, status: 'approved' }).lean(),
+    const [pendingToday, approvedToday, pendingAll, approvedAll] = await Promise.all([
+      Transaction.find({ ...userFilter, status: 'pending', createdAt: { $gte: startOfDay } }).lean(),
+      Transaction.find({ ...userFilter, status: 'approved', createdAt: { $gte: startOfDay } }).lean(),
+      Transaction.find({ ...userFilter, status: 'pending' }).lean(),
+      Transaction.find({ ...userFilter, status: 'approved' }).lean(),
     ]);
 
-    const sumUsdt = (list) =>
-      list.reduce((sum, tx) => sum + usdtFromTransaction(tx, platform), 0);
-
-    const todayUsdtSold = sumUsdt(todayTxs);
-    const totalUsdtSold = sumUsdt(allApproved);
-
     res.json({
-      binancePrice: binance,
-      platformPrice: platform,
-      spreadPerUsdt,
-      todayUsdtSold,
-      todayEarning: spreadPerUsdt * todayUsdtSold,
-      totalUsdtSold,
-      totalEarning: spreadPerUsdt * totalUsdtSold,
+      todayInTransactionAmount: sumInrValues(pendingToday),
+      todaySuccessAmount: sumInrValues(approvedToday),
+      inTransactionAmount: sumInrValues(pendingAll),
+      successAmount: sumInrValues(approvedAll),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
