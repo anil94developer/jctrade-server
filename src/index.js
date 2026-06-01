@@ -12,6 +12,8 @@ import walletRoutes from './routes/wallet.js';
 import dashboardRoutes from './routes/dashboard.js';
 import referralRoutes from './routes/referrals.js';
 import bannerRoutes from './routes/banners.js';
+import paymentUpiRoutes from './routes/payment-upis.js';
+import buyRoutes from './routes/buy.js';
 import { initSocket } from './socket.js';
 
 const app = express();
@@ -55,6 +57,8 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/referrals', referralRoutes);
 app.use('/api/banners', bannerRoutes);
+app.use('/api/payment-upis', paymentUpiRoutes);
+app.use('/api/buy', buyRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ message: 'Not found' });

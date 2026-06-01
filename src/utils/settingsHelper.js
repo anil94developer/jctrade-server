@@ -1,4 +1,5 @@
 import { Setting } from '../models/Setting.js';
+import { buildBuyCdmDetails, getAllowedBuyMethods, getBuyPaymentModesSetting } from './buyPaymentHelper.js';
 
 export async function getSetting(key, defaultValue) {
   const doc = await Setting.findOne({ key });
@@ -12,6 +13,7 @@ export async function setSetting(key, value) {
 
 const PUBLIC_KEYS = [
   ['usdtPrice', 0],
+  ['buyUsdtPrice', 0],
   ['binancePrice', 0],
   ['walletAddress', ''],
   ['maintenanceMode', false],
@@ -35,30 +37,50 @@ export async function getPublicSettings() {
   const paymentQrVisible = values[14] !== false && values[14] !== 'false';
   const hasPaymentQr = paymentQrImage.length > 20;
 
+  const sellPrice = Number(values[0]) || 0;
+  const buyPrice = Number(values[1]) || sellPrice;
+  const buyPaymentModes = await getBuyPaymentModesSetting();
+  const allowedBuyMethods = getAllowedBuyMethods(buyPaymentModes);
+  const buyCdm = allowedBuyMethods.includes('cdm') ? await buildBuyCdmDetails() : null;
+
   return {
-    usdtPrice: values[0],
-    binancePrice: Number(values[1]) || Number(values[0]) || 0,
-    walletAddress: String(values[2] || '').trim(),
-    maintenanceMode: Boolean(values[3]),
-    referralReward: values[4],
-    referralBaseUrl: String(values[5] || '').trim(),
-    sellCashbackPercent: values[6],
-    buyCashbackPercent: values[7],
-    supportPhone: String(values[8] || '').trim(),
-    supportTelegram: String(values[9] || '').trim(),
-    supportWhatsapp: String(values[10] || '').trim(),
-    supportPhoneVisible: values[11] !== false && values[11] !== 'false',
-    supportTelegramVisible: values[12] !== false && values[12] !== 'false',
-    supportWhatsappVisible: values[13] !== false && values[13] !== 'false',
+    usdtPrice: sellPrice,
+    buyUsdtPrice: buyPrice,
+    binancePrice: Number(values[2]) || sellPrice || 0,
+    walletAddress: String(values[3] || '').trim(),
+    maintenanceMode: Boolean(values[4]),
+    referralReward: values[5],
+    referralBaseUrl: String(values[6] || '').trim(),
+    sellCashbackPercent: values[7],
+    buyCashbackPercent: values[8],
+    supportPhone: String(values[9] || '').trim(),
+    supportTelegram: String(values[10] || '').trim(),
+    supportWhatsapp: String(values[11] || '').trim(),
+    supportPhoneVisible: values[12] !== false && values[12] !== 'false',
+    supportTelegramVisible: values[13] !== false && values[13] !== 'false',
+    supportWhatsappVisible: values[14] !== false && values[14] !== 'false',
     paymentQrVisible,
     hasPaymentQr,
     /** Included when visible so app works without a second request */
     paymentQrImage: paymentQrVisible && hasPaymentQr ? paymentQrImage : null,
+    buyPaymentModes,
+    allowedBuyMethods,
+    hasBuyCdm: Boolean(buyCdm),
   };
 }
 
 export async function getAdminSettings() {
   const pub = await getPublicSettings();
   const paymentQrImage = await getSetting('paymentQrImage', '');
-  return { ...pub, paymentQrImage: paymentQrImage || '' };
+  const buyCdm = await buildBuyCdmDetails();
+  return {
+    ...pub,
+    paymentQrImage: paymentQrImage || '',
+    buyCdmBankName: String(await getSetting('buyCdmBankName', '')),
+    buyCdmAccountNumber: String(await getSetting('buyCdmAccountNumber', '')),
+    buyCdmIfsc: String(await getSetting('buyCdmIfsc', '')),
+    buyCdmAccountHolder: String(await getSetting('buyCdmAccountHolder', '')),
+    buyCdmInstructions: String(await getSetting('buyCdmInstructions', '')),
+    hasBuyCdm: Boolean(buyCdm),
+  };
 }

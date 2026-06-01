@@ -6,6 +6,7 @@ import {
   setSetting,
   getSetting,
 } from '../utils/settingsHelper.js';
+import { normalizeBuyPaymentModes } from '../utils/buyPaymentHelper.js';
 
 const router = Router();
 
@@ -57,6 +58,11 @@ router.put('/', authAdmin, async (req, res) => {
       if (Number.isNaN(p)) return res.status(400).json({ message: 'Invalid USDT price' });
       await setSetting('usdtPrice', p);
     }
+    if (body.buyUsdtPrice !== undefined) {
+      const p = Number(body.buyUsdtPrice);
+      if (Number.isNaN(p)) return res.status(400).json({ message: 'Invalid buy USDT price' });
+      await setSetting('buyUsdtPrice', p);
+    }
     if (body.binancePrice !== undefined) {
       const p = Number(body.binancePrice);
       if (Number.isNaN(p)) return res.status(400).json({ message: 'Invalid Binance price' });
@@ -78,6 +84,24 @@ router.put('/', authAdmin, async (req, res) => {
     }
     if (body.buyCashbackPercent !== undefined) {
       await setSetting('buyCashbackPercent', Number(body.buyCashbackPercent));
+    }
+    if (body.buyPaymentModes !== undefined) {
+      await setSetting('buyPaymentModes', normalizeBuyPaymentModes(body.buyPaymentModes));
+    }
+    if (body.buyCdmBankName !== undefined) {
+      await setSetting('buyCdmBankName', String(body.buyCdmBankName).trim());
+    }
+    if (body.buyCdmAccountNumber !== undefined) {
+      await setSetting('buyCdmAccountNumber', String(body.buyCdmAccountNumber).trim());
+    }
+    if (body.buyCdmIfsc !== undefined) {
+      await setSetting('buyCdmIfsc', String(body.buyCdmIfsc).trim());
+    }
+    if (body.buyCdmAccountHolder !== undefined) {
+      await setSetting('buyCdmAccountHolder', String(body.buyCdmAccountHolder).trim());
+    }
+    if (body.buyCdmInstructions !== undefined) {
+      await setSetting('buyCdmInstructions', String(body.buyCdmInstructions).trim());
     }
     if (body.supportPhone !== undefined) {
       const v = String(body.supportPhone).trim();

@@ -15,6 +15,13 @@ export async function seedDefaults() {
 
   const defaults = [
     { key: 'usdtPrice', value: 105 },
+    { key: 'buyUsdtPrice', value: 106 },
+    { key: 'buyPaymentModes', value: 'both' },
+    { key: 'buyCdmBankName', value: '' },
+    { key: 'buyCdmAccountNumber', value: '' },
+    { key: 'buyCdmIfsc', value: '' },
+    { key: 'buyCdmAccountHolder', value: '' },
+    { key: 'buyCdmInstructions', value: 'Deposit cash at CDM using the account below. Enter the transaction reference when submitting your buy request.' },
     { key: 'binancePrice', value: 99 },
     { key: 'walletAddress', value: '' },
     { key: 'maintenanceMode', value: false },

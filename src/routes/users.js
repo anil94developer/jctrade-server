@@ -67,13 +67,14 @@ router.get('/me', authUser, async (req, res) => {
 
 router.patch('/me', authUser, async (req, res) => {
   try {
-    const { name, phone, upiId } = req.body;
+    const { name, phone, upiId, walletAddress } = req.body;
     const user = await User.findByIdAndUpdate(
       req.userId,
       {
         ...(name !== undefined && { name }),
         ...(phone !== undefined && { phone }),
         ...(upiId !== undefined && { upiId }),
+        ...(walletAddress !== undefined && { walletAddress: String(walletAddress).trim() }),
       },
       { new: true }
     ).select('-__v');

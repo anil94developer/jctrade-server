@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema(
     name: { type: String, default: '' },
     phone: { type: String, default: '' },
     upiId: { type: String, default: '' },
+    /** USDT receive address (e.g. TRC20) */
+    walletAddress: { type: String, default: '', trim: true },
     uid: { type: String, unique: true },
     balance: { type: Number, default: 0 },
     avatar: { type: String, default: '' },
